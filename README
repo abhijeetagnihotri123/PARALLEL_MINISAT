@@ -61,6 +61,9 @@ Examples:
 
 As the following minisat has been parallized with 4 processes.
 Run the upgraded code with the following command.
-            mpirun -np 4 minisat <name of cnf file> 
+            mpirun -np 4 minisat <name of cnf file> <outputfile> (if any).
+            Also the name of output file will be for the process with rank 0 for other process the minisat will implicitly 
+            create out1.txt , out2.txt and out3.txt corressponding to each process so that every process can either write its 
+            solution or otherwise.
 
 
