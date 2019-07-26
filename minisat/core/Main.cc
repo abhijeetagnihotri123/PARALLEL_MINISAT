@@ -1,16 +1,13 @@
 /*****************************************************************************************[Main.cc]
 Copyright (c) 2003-2006, Niklas Een, Niklas Sorensson
 Copyright (c) 2007-2010, Niklas Sorensson
-
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the "Software"), to deal in the Software without restriction,
 including without limitation the rights to use, copy, modify, merge, publish, distribute,
 sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
-
 The above copyright notice and this permission notice shall be included in all copies or
 substantial portions of the Software.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
 NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
 NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
@@ -20,7 +17,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include <errno.h>
 #include <zlib.h>
-
+#include <mpi.h>
 #include "minisat/utils/System.h"
 #include "minisat/utils/ParseUtils.h"
 #include "minisat/utils/Options.h"
@@ -57,7 +54,10 @@ int main(int argc, char** argv)
     try {
         setUsageHelp("USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
         setX86FPUPrecision();
-
+        int id,size;
+        MPI_Init(&argc,&argv);
+        MPI_Comm_size(MPI_COMM_WORLD,&size);
+        MPI_Comm_rank(MPI_COMM_WORLD,&id);
         // Extra options:
         //
         IntOption    verb   ("MAIN", "verb",   "Verbosity level (0=silent, 1=some, 2=more).", 1, IntRange(0, 2));
@@ -95,6 +95,9 @@ int main(int argc, char** argv)
         parse_DIMACS(in, S, (bool)strictp);
         gzclose(in);
         FILE* res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
+        FILE* res1 = fopen("out1.txt","wb");
+        FILE* res2 = fopen("out2.txt","wb");
+        FILE* res3 = fopen("out3.txt","wb");
         
         if (S.verbosity > 0){
             printf("|  Number of variables:  %12d                                         |\n", S.nVars());
@@ -121,27 +124,126 @@ int main(int argc, char** argv)
         }
         
         vec<Lit> dummy;
-        lbool ret = S.solveLimited(dummy);
-        if (S.verbosity > 0){
-            S.printStats();
-            printf("\n"); }
-        printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
-        if (res != NULL){
-            if (ret == l_True){
-                fprintf(res, "SAT\n");
-                for (int i = 0; i < S.nVars(); i++)
-                    if (S.model[i] != l_Undef)
-                        fprintf(res, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
-                fprintf(res, " 0\n");
-            }else if (ret == l_False)
-                fprintf(res, "UNSAT\n");
-            else
-                fprintf(res, "INDET\n");
-            fclose(res);
+        vec<Lit> dummy1;
+        vec<Lit> dummy2;
+        vec<Lit> dummy3;
+        lbool ret,ret1,ret2,ret3;
+        int x=1;
+        int y=2;
+        bool sign;
+        Lit p;
+        if(id==0)
+        {   
+            sign=true;
+            p=mkLit(x,sign);
+            S.addClause(p);
+            p=mkLit(y,sign);
+            S.addClause(p);
+            ret = S.solveLimited(dummy);
+            if (S.verbosity > 0){
+                S.printStats();
+                printf("Process with id %d\n",id); }
+            printf(ret == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+                if (res != NULL){
+                if (ret == l_True){
+                    fprintf(res, "SAT\n");
+                    for (int i = 0; i < S.nVars(); i++)
+                        if (S.model[i] != l_Undef)
+                            fprintf(res, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
+                    fprintf(res, " 0\n");
+                }else if (ret == l_False)
+                    fprintf(res, "UNSAT\n");
+                else
+                    fprintf(res, "INDET\n");
+                fclose(res);
+            }
         }
-        
+        else if(id==1)
+        {   
+            sign=true;
+            p=mkLit(x,sign);
+            S.addClause(p);
+            sign=false;
+            p=mkLit(y,sign);
+            S.addClause(p);
+            ret1 = S.solveLimited(dummy1);
+            if (S.verbosity > 0){
+                S.printStats();
+                printf("Process with id %d\n",id); }
+                printf(ret1 == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+                if (res1 != NULL){
+                if (ret1 == l_True){
+                    fprintf(res1, "SAT\n");
+                    for (int i = 0; i < S.nVars(); i++)
+                        if (S.model[i] != l_Undef)
+                            fprintf(res1, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
+                    fprintf(res1, " 0\n");
+                }else if (ret1 == l_False)
+                    fprintf(res1, "UNSAT\n");
+                else
+                    fprintf(res1, "INDET\n");
+                fclose(res1);
+                
+            }
+        }
+        else if(id==2)
+        {
+            sign=false;
+            p=mkLit(x,sign);
+            S.addClause(p);
+            sign=true;
+            p=mkLit(y,sign);
+            S.addClause(p);
+            ret2 = S.solveLimited(dummy2); 
+            if (S.verbosity > 0){
+                S.printStats();
+                printf("Process with id %d\n",id); }
+                printf(ret2 == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+                if (res2 != NULL){
+                if (ret2 == l_True){
+                    fprintf(res2, "SAT\n");
+                    for (int i = 0; i < S.nVars(); i++)
+                        if (S.model[i] != l_Undef)
+                            fprintf(res2, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
+                    fprintf(res2, " 0\n");
+                }else if (ret2 == l_False)
+                    fprintf(res2, "UNSAT\n");
+                else
+                    fprintf(res2, "INDET\n");
+                fclose(res2);
+            }
+        }
+        else if(id==3)
+        {
+            sign=false;
+            p=mkLit(x,sign);
+            S.addClause(p);
+            p=mkLit(y,sign);
+            S.addClause(p);
+            ret3 = S.solveLimited(dummy3);
+            if (S.verbosity > 0){
+                S.printStats();
+                printf("Process with id %d\n",id); }
+                printf(ret3 == l_True ? "SATISFIABLE\n" : ret == l_False ? "UNSATISFIABLE\n" : "INDETERMINATE\n");
+                if (res3 != NULL){
+                if (ret3 == l_True){
+                    fprintf(res3, "SAT\n");
+                    for (int i = 0; i < S.nVars(); i++)
+                        if (S.model[i] != l_Undef)
+                            fprintf(res3, "%s%s%d", (i==0)?"":" ", (S.model[i]==l_True)?"":"-", i+1);
+                    fprintf(res3, " 0\n");
+                }else if (ret3 == l_False)
+                    fprintf(res3, "UNSAT\n");
+                else
+                    fprintf(res3, "INDET\n");
+                fclose(res3);
+            }
+        }
+        fflush(stdout);
+        MPI_Finalize();
 #ifdef NDEBUG
-        exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
+        return 0;
+        //exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
 #else
         return (ret == l_True ? 10 : ret == l_False ? 20 : 0);
 #endif
